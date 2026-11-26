@@ -1,97 +1,85 @@
 
-const express = require("express");
-const cors = require("cors");
-const { tiktok } = require("@coflyn/scrapr");
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#050505">
 
-const app = express();
+    <title>TikTok Downloader</title>
 
-app.use(cors());
-app.use(express.json());
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
 
-function validTikTokURL(value) {
-    try {
-        const url = new URL(value);
-        return (
-            url.protocol === "https:" &&
-            ["tiktok.com", "www.tiktok.com", "vm.tiktok.com", "vt.tiktok.com"].includes(url.hostname)
-        );
-    } catch {
-        return false;
-    }
-}
+    <header class="navbar">
+        <div class="logo">TIKTOK<span>DL.</span></div>
+        <div class="nav-label">VIDEO DOWNLOADER</div>
+    </header>
 
-app.post("/api/download", async (req, res) => {
-    try {
-        const { url } = req.body;
+    <main class="container">
 
-        if (!validTikTokURL(url)) {
-            return res.status(400).json({
-                success: false,
-                message: "Link TikTok tidak valid."
-            });
-        }
+        <section class="hero">
 
-        let result = null;
+            <div class="tag">SIMPLE VIDEO DOWNLOADER</div>
 
-        for (const method of [tiktok.snaptik, tiktok.ssstik]) {
-            try {
-                const response = await method.call(tiktok, url);
+            <h1>
+                Download Your<br>
+                <span>Favorite Video.</span>
+            </h1>
 
-                if (response?.status && response?.result) {
-                    result = response.result;
-                    break;
-                }
-            } catch (error) {
-                console.error("Metode gagal:", error.message);
-            }
-        }
+            <p>
+                Download video TikTok dengan mudah.
+                Cukup tempelkan link video di bawah ini.
+            </p>
 
-        if (!result) {
-            return res.status(502).json({
-                success: false,
-                message: "Video tidak dapat diproses."
-            });
-        }
+            <form id="downloadForm" class="search-box">
 
-        const downloads = (result.downloads || [])
-            .filter(item => {
-                try {
-                    return (
-                        ["video", "mp4"].includes(String(item.type).toLowerCase()) &&
-                        new URL(item.url).protocol === "https:"
-                    );
-                } catch {
-                    return false;
-                }
-            })
-            .map(item => ({
-                url: item.url,
-                type: "video",
-                quality: item.quality || "Video"
-            }));
+                <input
+                    type="url"
+                    id="videoUrl"
+                    placeholder="Paste TikTok video link..."
+                    required
+                >
 
-        if (!downloads.length) {
-            return res.status(404).json({
-                success: false,
-                message: "Link download tidak ditemukan."
-            });
-        }
+                <button type="submit" id="downloadBtn">
+                    DOWNLOAD
+                </button>
 
-        return res.json({
-            success: true,
-            video: {
-                title: result.title || "TikTok Video",
-                thumbnail: result.thumbnail || "",
-                downloads
-            }
-        });
-    } catch (error) {
-        console.error(error);
-        return res.status(500).json({
-            success: false,
-            message: "Terjadi kesalahan pada server."
-        });
-    }
-});
+            </form>
 
-module.exports = app;
+            <div class="supported">
+                SUPPORTED PLATFORM: TIKTOK
+            </div>
+
+        </section>
+
+        <section class="result-section">
+
+            <div class="section-header">
+                <h2>DOWNLOAD RESULT</h2>
+                <span id="status">WAITING</span>
+            </div>
+
+            <div id="resultBox" class="result-box">
+
+                <div class="empty">
+                    <h3>NO VIDEO FOUND</h3>
+                    <p>Paste a TikTok link to get started.</p>
+                </div>
+
+            </div>
+
+        </section>
+
+    </main>
+
+    <footer>
+        <span>v hann © 2026</span>
+        <span>TikTok Downloader</span>
+    </footer>
+
+    <script src="script.js"></script>
+
+</body>
+</html>
