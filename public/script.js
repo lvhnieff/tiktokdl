@@ -1,37 +1,44 @@
-
 const form = document.getElementById("downloadForm");
 const input = document.getElementById("videoUrl");
 const button = document.getElementById("downloadBtn");
 const resultBox = document.getElementById("resultBox");
 const statusText = document.getElementById("status");
 
+const TIKTOK_RE = /^https?:\/\/(www\.|vm\.|vt\.)?tiktok\.com\//i;
+
+function setStatus(text, state = "") {
+    statusText.textContent = text;
+    statusText.className = state;
+}
+
+function setBusy(busy) {
+    button.disabled = busy;
+    button.textContent = busy ? "PROCESSING..." : "PROCESS";
+}
+
 form.addEventListener("submit", async (e) => {
     e.preventDefault();
-
     const url = input.value.trim();
 
-    if (!/^https?:\/\/(www\.|vm\.|vt\.)?tiktok\.com\//i.test(url)) {
+    if (!TIKTOK_RE.test(url)) {
         alert("Masukkan link TikTok yang valid!");
         return;
     }
 
-    button.disabled = true;
-    button.textContent = "PROCESSING...";
-    statusText.textContent = "SEARCHING";
-
+    setBusy(true);
+    setStatus("SEARCHING", "loading");
+    
     resultBox.innerHTML = `
         <div class="empty">
-            <h3>PROCESSING VIDEO</h3>
-            <p>Sedang mengambil informasi video...</p>
+            <h3>PROCESSING...</h3>
+            <p>Sedang mengambil data video dari server.</p>
         </div>
     `;
 
     try {
         const response = await fetch("/api/download", {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ url })
         });
 
@@ -41,96 +48,78 @@ form.addEventListener("submit", async (e) => {
             throw new Error(data.message || "Gagal mengambil video.");
         }
 
-        showResult(data.video);
-
-        statusText.textContent = "SUCCESS";
+        renderResult(data.video, url);
+        setStatus("SUCCESS", "success");
 
     } catch (error) {
         resultBox.innerHTML = `
             <div class="empty">
-                <h3>DOWNLOAD FAILED</h3>
+                <h3>FAILED</h3>
                 <p>${escapeHTML(error.message)}</p>
             </div>
         `;
-
-        statusText.textContent = "ERROR";
-
+        setStatus("ERROR", "error");
     } finally {
-        button.disabled = false;
-        button.textContent = "DOWNLOAD";
+        setBusy(false);
     }
 });
 
-function showResult(video) {
-    const downloads = (video.downloads || []).filter(item => {
-        try {
-            return item.type === "video" &&
-                new URL(item.url).protocol === "https:";
-        } catch {
-            return false;
-        }
-    });
-
-    if (!downloads.length) {
-        throw new Error("Link video tidak tersedia.");
-    }
+// Render UI
+function renderResult(video, originalUrl) {
+    // Ambil data array download dari backend
+    const downloads = video.downloads || [];
+    
+    // HANYA AMBIL 1 VIDEO TERBAIK UNTUK PREVIEW (Tidak menampilkan list HD 1, HD 2, dll)
+    const bestVideoUrl = downloads.length > 0 ? downloads[0].url : null;
 
     resultBox.innerHTML = "";
 
     const card = document.createElement("div");
     card.className = "video-result";
 
-    if (video.thumbnail) {
-        try {
-            const imageUrl = new URL(video.thumbnail);
-
-            if (imageUrl.protocol === "https:") {
-                const img = document.createElement("img");
-                img.src = imageUrl.href;
-                img.alt = "Video thumbnail";
-                img.style.width = "100%";
-                img.style.maxHeight = "350px";
-                img.style.objectFit = "contain";
-                img.style.borderRadius = "6px";
-                card.appendChild(img);
-            }
-        } catch {}
+    // Preview Video
+    if (bestVideoUrl) {
+        const videoEl = document.createElement("video");
+        videoEl.src = bestVideoUrl;
+        videoEl.controls = true;
+        videoEl.className = "video-preview";
+        videoEl.setAttribute("referrerpolicy", "no-referrer"); 
+        card.appendChild(videoEl);
     }
 
+    // Info Text
     const info = document.createElement("div");
     info.className = "video-info";
-
-    const title = document.createElement("h3");
-    title.textContent = video.title || "TikTok Video";
-
-    const description = document.createElement("p");
-    description.textContent = `${downloads.length} download option(s) available`;
-
-    info.append(title, description);
+    info.innerHTML = `
+        <h3>${escapeHTML(video.title || "TikTok Video")}</h3>
+        <p class="author">By @${escapeHTML(video.author || "unknown")}</p>
+    `;
     card.appendChild(info);
 
-    downloads.forEach((item, index) => {
-        const link = document.createElement("a");
+    // HANYA 2 TOMBOL: MP4 & MP3
+    const actionGroup = document.createElement("div");
+    actionGroup.className = "action-group";
 
-        link.className = "download-link";
-        link.href = item.url;
-        link.target = "_blank";
-        link.rel = "noopener noreferrer";
-        link.textContent =
-            `DOWNLOAD ${item.quality || "VIDEO"} ${index + 1}`;
+    // 1. Tombol MP4
+    const mp4Btn = document.createElement("a");
+    mp4Btn.className = "download-link btn-mp4";
+    mp4Btn.href = `/api/video?url=${encodeURIComponent(originalUrl)}`;
+    mp4Btn.textContent = "⬇ DOWNLOAD MP4";
+    actionGroup.appendChild(mp4Btn);
 
-        card.appendChild(link);
-    });
+    // 2. Tombol MP3
+    const mp3Btn = document.createElement("a");
+    mp3Btn.className = "download-link btn-mp3";
+    mp3Btn.href = `/api/audio?url=${encodeURIComponent(originalUrl)}`;
+    mp3Btn.textContent = "🎵 DOWNLOAD MP3";
+    actionGroup.appendChild(mp3Btn);
 
+    card.appendChild(actionGroup);
     resultBox.appendChild(card);
 }
 
 function escapeHTML(value) {
-    return String(value).replace(/[&<>"']/g, char => ({
-        "&": "&amp;",
-        "<": "&lt;",
-        ">": "&gt;",
-        '"': "&quot;",
-        "'": "&#039;"
-    })[char]);
+    return String(value).replace(/[&<>"']/g, (c) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;"
+    })[c]);
 }
